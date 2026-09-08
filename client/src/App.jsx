@@ -13,7 +13,7 @@ import EditStudentModal from './component/EditStudentModal';
 import { LoginScreen } from './component/LoginScreen';
 import { AlertCircle, LogOut } from 'lucide-react';
 
-// Move API_URL outside the component scope
+// API base URL configuration: prefers Vite environment variable, falls back to local backend
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
 export default function App() {
@@ -32,31 +32,44 @@ export default function App() {
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [editingStudent, setEditingStudent] = useState(null);
 
-  // 1. Session Verification on Mount
+  // 1. Session Verification on Mount (With AbortController timeout to prevent permanent hang)
   useEffect(() => {
+    let isMounted = true;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000); // 8-second safety timeout
+
     const verifyAuth = async () => {
       try {
-        // ✅ FIXED: Use backticks (`) instead of single quotes (')
         const res = await fetch(`${API_URL}/api/auth/me`, {
           method: 'GET',
-          credentials: 'include', // Sends HTTP-only cookie
+          credentials: 'include',
+          signal: controller.signal,
         });
 
         if (res.ok) {
           const data = await res.json();
-          setUser(data.user);
+          if (isMounted) setUser(data.user);
         } else {
-          setUser(null);
+          if (isMounted) setUser(null);
         }
       } catch (err) {
-        console.error('Auth check failed:', err);
-        setUser(null);
+        if (err.name !== 'AbortError') {
+          console.error('Auth check failed:', err);
+        }
+        if (isMounted) setUser(null);
       } finally {
-        setAuthLoading(false);
+        clearTimeout(timeoutId);
+        if (isMounted) setAuthLoading(false);
       }
     };
 
     verifyAuth();
+
+    return () => {
+      isMounted = false;
+      controller.abort();
+      clearTimeout(timeoutId);
+    };
   }, []);
 
   // 2. Debounce Search Input
@@ -76,7 +89,9 @@ export default function App() {
       try {
         setTableLoading(true);
         setError(null);
-        const data = await getStudentsAPI(debouncedSearch ? { city: debouncedSearch } : {});
+        const data = await getStudentsAPI(
+          debouncedSearch ? { city: debouncedSearch } : {}
+        );
         if (isMounted) setStudents(data);
       } catch (err) {
         if (isMounted) setError(err.message);
@@ -86,6 +101,7 @@ export default function App() {
     };
 
     fetchStudents();
+
     return () => {
       isMounted = false;
     };
@@ -143,8 +159,9 @@ export default function App() {
   // Auth Gate: Session Check Loading
   if (authLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-900 text-slate-400">
+      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-900 text-slate-400 gap-3">
         <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-indigo-500"></div>
+        <p className="text-xs text-slate-500">Connecting to server...</p>
       </div>
     );
   }
@@ -153,6 +170,10 @@ export default function App() {
   if (!user) {
     return <LoginScreen />;
   }
+
+  // Safe avatar/fallback resolver
+  const userImage = user?.avatar || user?.image || user?.picture;
+  const displayName = user?.displayName || user?.name || user?.email || 'User';
 
   // Authenticated Main Dashboard
   return (
@@ -163,20 +184,20 @@ export default function App() {
         {/* User Session Bar */}
         <div className="flex items-center justify-between bg-slate-800/60 border border-slate-700/60 px-4 py-2.5 rounded-xl">
           <div className="flex items-center gap-3">
-            {user.avatar ? (
+            {userImage ? (
               <img
-                src={user?.avatar || user?.image}
-                alt={user?.name || 'User Avatar'}
+                src={userImage}
+                alt={displayName}
                 referrerPolicy="no-referrer"
-                className="w-8 h-8 rounded-full border border-indigo-500/40"
+                className="w-8 h-8 rounded-full border border-indigo-500/40 object-cover"
               />
             ) : (
-              <div className="w-8 h-8 rounded-full bg-indigo-600 text-white flex items-center justify-center text-xs font-bold">
-                {user.displayName?.charAt(0)}
+              <div className="w-8 h-8 rounded-full bg-indigo-600 text-white flex items-center justify-center text-xs font-bold uppercase">
+                {displayName.charAt(0)}
               </div>
             )}
             <span className="text-sm font-medium text-slate-200">
-              {user.displayName || user.email}
+              {displayName}
             </span>
           </div>
           <button
