@@ -29,10 +29,25 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// 1. CORS Configuration (Fixed typo from corscors to cors)
+// Trust Render reverse proxy (ensures secure cookies and HTTPS headers work)
+app.set("trust proxy", 1);
+
+// 1. CORS Configuration (Allows both local dev and your live Vercel domain)
+const allowedOrigins = [
+  "http://localhost:5173",
+  "http://127.0.0.1:5173",
+  "https://mern-student-records.vercel.app",
+];
+
 app.use(
   cors({
-    origin: ["http://localhost:5173", "http://127.0.0.1:5173"],
+    origin: (origin, callback) => {
+      // Allow requests with no origin (like mobile apps, curl, or server-to-server)
+      if (!origin || allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+      return callback(new Error("CORS policy violation: Origin not allowed"));
+    },
     credentials: true,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
@@ -79,7 +94,7 @@ app.use((err, req, res, next) => {
 const start = async () => {
   try {
     await connectDB();
-    app.listen(PORT, '0.0.0.0', () => {
+    app.listen(PORT, "0.0.0.0", () => {
       console.log(`🚀 Server listening on port ${PORT}`);
     });
   } catch (error) {
