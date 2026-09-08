@@ -13,6 +13,9 @@ import EditStudentModal from './component/EditStudentModal';
 import { LoginScreen } from './component/LoginScreen';
 import { AlertCircle, LogOut } from 'lucide-react';
 
+// Move API_URL outside the component scope
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+
 export default function App() {
   // Auth State
   const [user, setUser] = useState(null);
@@ -33,7 +36,8 @@ export default function App() {
   useEffect(() => {
     const verifyAuth = async () => {
       try {
-        const res = await fetch('http://localhost:5000/api/auth/me', {
+        // ✅ FIXED: Use backticks (`) instead of single quotes (')
+        const res = await fetch(`${API_URL}/api/auth/me`, {
           method: 'GET',
           credentials: 'include', // Sends HTTP-only cookie
         });
@@ -45,14 +49,14 @@ export default function App() {
           setUser(null);
         }
       } catch (err) {
-        console.error('Logout failed', err);
+        console.error('Auth check failed:', err);
         setUser(null);
       } finally {
         setAuthLoading(false);
       }
     };
 
-    verifyAuth(); // <-- Executed here
+    verifyAuth();
   }, []);
 
   // 2. Debounce Search Input
@@ -94,13 +98,13 @@ export default function App() {
 
   const handleLogout = async () => {
     try {
-      await fetch('http://localhost:5000/api/auth/logout', {
+      await fetch(`${API_URL}/api/auth/logout`, {
         method: 'POST',
         credentials: 'include',
       });
       setUser(null);
-    } catch (err) {
-      console.error('Logout failed', err);
+    } catch (error) {
+      console.error('Logout failed:', error);
     }
   };
 
@@ -162,7 +166,7 @@ export default function App() {
             {user.avatar ? (
               <img
                 src={user?.avatar || user?.image}
-                alt={user?.name || "User Avatar"}
+                alt={user?.name || 'User Avatar'}
                 referrerPolicy="no-referrer"
                 className="w-8 h-8 rounded-full border border-indigo-500/40"
               />
