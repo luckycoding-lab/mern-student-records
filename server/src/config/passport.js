@@ -14,6 +14,7 @@ export const configurePassport = () => {
         callbackURL:
           process.env.GOOGLE_CLIENT_URL ||
           "http://localhost:5000/api/auth/google/callback",
+        proxy: true,
       },
       async (accessToken, refreshToken, profile, done) => {
         try {
