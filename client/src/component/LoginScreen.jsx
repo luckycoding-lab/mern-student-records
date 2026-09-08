@@ -1,7 +1,9 @@
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+
 export const LoginScreen = () => {
   const handleGoogleLogin = () => {
-    // Redirect browser directly to backend OAuth entrypoint
-    window.location.href = 'http://localhost:5000/api/auth/google';
+    // Dynamic entrypoint: points to Render in production, localhost in dev
+    window.location.href = `${API_URL}/api/auth/google`;
   };
 
   return (
