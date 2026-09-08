@@ -94,7 +94,7 @@ app.use((err, req, res, next) => {
 const start = async () => {
   try {
     await connectDB();
-    app.listen(PORT, "0.0.0.0", () => {
+    app.listen(PORT, '0.0.0.0', () => {
       console.log(`🚀 Server listening on port ${PORT}`);
     });
   } catch (error) {
