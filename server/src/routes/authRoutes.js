@@ -43,7 +43,7 @@ routes.get(
 
     const clientUrl = process.env.CLIENT_URL || "https://mern-student-records.vercel.app";
     // Redirect to dashboard (or clientUrl if your main screen is at '/')
-    res.redirect(`${clientUrl}/dashboard`);
+    res.redirect(`${clientUrl}/`);
   }
 );
 
