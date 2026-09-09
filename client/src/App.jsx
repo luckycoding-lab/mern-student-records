@@ -12,14 +12,10 @@ import StudentTable from './component/StudentTable';
 import EditStudentModal from './component/EditStudentModal';
 import { LoginScreen } from './component/LoginScreen';
 import { AlertCircle, LogOut } from 'lucide-react';
-
-// API base URL configuration: prefers Vite environment variable, falls back to local backend
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+import { useAuth } from './context/AuthContext';
 
 export default function App() {
-  // Auth State
-  const [user, setUser] = useState(null);
-  const [authLoading, setAuthLoading] = useState(true);
+  const { user, authLoading, logout } = useAuth();
 
   // App & Data States
   const [students, setStudents] = useState([]);
@@ -32,47 +28,7 @@ export default function App() {
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [editingStudent, setEditingStudent] = useState(null);
 
-  // 1. Session Verification on Mount (With AbortController timeout to prevent permanent hang)
-  useEffect(() => {
-    let isMounted = true;
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 8000); // 8-second safety timeout
-
-    const verifyAuth = async () => {
-      try {
-        const res = await fetch(`${API_URL}/api/auth/me`, {
-          method: 'GET',
-          credentials: 'include',
-          signal: controller.signal,
-        });
-
-        if (res.ok) {
-          const data = await res.json();
-          if (isMounted) setUser(data.user);
-        } else {
-          if (isMounted) setUser(null);
-        }
-      } catch (err) {
-        if (err.name !== 'AbortError') {
-          console.error('Auth check failed:', err);
-        }
-        if (isMounted) setUser(null);
-      } finally {
-        clearTimeout(timeoutId);
-        if (isMounted) setAuthLoading(false);
-      }
-    };
-
-    verifyAuth();
-
-    return () => {
-      isMounted = false;
-      controller.abort();
-      clearTimeout(timeoutId);
-    };
-  }, []);
-
-  // 2. Debounce Search Input
+  // Debounce Search Input
   useEffect(() => {
     const handler = setTimeout(() => {
       setDebouncedSearch(searchTerm.trim());
@@ -80,7 +36,7 @@ export default function App() {
     return () => clearTimeout(handler);
   }, [searchTerm]);
 
-  // 3. Fetch Student Records (Only runs if user is authenticated)
+  // Fetch Students when authenticated
   useEffect(() => {
     if (!user) return;
 
@@ -110,18 +66,6 @@ export default function App() {
   const showToast = (message) => {
     setToast(message);
     setTimeout(() => setToast(null), 3000);
-  };
-
-  const handleLogout = async () => {
-    try {
-      await fetch(`${API_URL}/api/auth/logout`, {
-        method: 'POST',
-        credentials: 'include',
-      });
-      setUser(null);
-    } catch (error) {
-      console.error('Logout failed:', error);
-    }
   };
 
   const handleCreate = async (payload) => {
@@ -156,7 +100,7 @@ export default function App() {
     }
   };
 
-  // Auth Gate: Session Check Loading
+  // Auth Gate: Loading spinner
   if (authLoading) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-slate-900 text-slate-400 gap-3">
@@ -166,16 +110,14 @@ export default function App() {
     );
   }
 
-  // Auth Gate: Unauthenticated Login Screen
+  // Auth Gate: Unauthenticated
   if (!user) {
     return <LoginScreen />;
   }
 
-  // Safe avatar/fallback resolver
   const userImage = user?.avatar || user?.image || user?.picture;
   const displayName = user?.displayName || user?.name || user?.email || 'User';
 
-  // Authenticated Main Dashboard
   return (
     <div className="min-h-screen bg-gray-900 text-slate-100 p-6 md:p-12 font-sans selection:bg-blue-500/30">
       <div className="max-w-6xl mx-auto space-y-8">
@@ -201,7 +143,7 @@ export default function App() {
             </span>
           </div>
           <button
-            onClick={handleLogout}
+            onClick={logout}
             className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 rounded-lg text-xs font-medium transition cursor-pointer"
           >
             <LogOut className="w-3.5 h-3.5" /> Log Out
