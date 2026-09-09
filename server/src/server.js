@@ -95,7 +95,7 @@ const start = async () => {
   try {
     await connectDB();
     app.listen(PORT, '0.0.0.0', () => {
-      console.log(`🚀 Server listening on port ${PORT}`);
+      console.log('🚀 Server listening on port:', PORT);
     });
   } catch (error) {
     console.error("Server launch aborted due to DB connection failure.", error);
