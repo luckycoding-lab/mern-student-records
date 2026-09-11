@@ -13,11 +13,33 @@ export const AuthProvider = ({ children }) => {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 8000);
 
+    // 1. Capture token from URL query params (bypasses iOS/Safari cross-domain cookie blocks)
+    const urlParams = new URLSearchParams(window.location.search);
+    const tokenFromUrl = urlParams.get('token');
+
+    if (tokenFromUrl) {
+      localStorage.setItem('authToken', tokenFromUrl);
+      // Clean up the URL query param without triggering a full page reload
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+
+    // 2. Retrieve token from URL or localStorage fallback
+    const token = tokenFromUrl || localStorage.getItem('authToken');
+
     const verifyAuth = async () => {
       try {
+        // Prepare headers (attaching Bearer token for Safari / iOS)
+        const headers = {
+          'Content-Type': 'application/json',
+        };
+        if (token) {
+          headers['Authorization'] = `Bearer ${token}`;
+        }
+
         const res = await fetch(`${API_URL}/api/auth/me`, {
           method: 'GET',
-          credentials: 'include', // Transmits cross-domain cookie
+          headers,
+          credentials: 'include', // Retains cross-domain cookie check for desktop browsers
           signal: controller.signal,
         });
 
@@ -25,11 +47,13 @@ export const AuthProvider = ({ children }) => {
           const data = await res.json();
           if (isMounted) setUser(data.user);
         } else {
+          localStorage.removeItem('authToken');
           if (isMounted) setUser(null);
         }
       } catch (err) {
         if (err.name !== 'AbortError') {
           console.error('Auth verification error:', err);
+          localStorage.removeItem('authToken');
         }
         if (isMounted) setUser(null);
       } finally {
@@ -47,20 +71,31 @@ export const AuthProvider = ({ children }) => {
     };
   }, []);
 
+  // Logout handler
   const logout = async () => {
     try {
+      const token = localStorage.getItem('authToken');
+      const headers = {};
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
       await fetch(`${API_URL}/api/auth/logout`, {
         method: 'POST',
+        headers,
         credentials: 'include',
       });
-      setUser(null);
     } catch (error) {
       console.error('Logout failed:', error);
+    } finally {
+      // Clear client-side token and reset user state
+      localStorage.removeItem('authToken');
+      setUser(null);
     }
   };
 
   return (
-    <AuthContext.Provider value={{ user, authLoading, logout }}>
+    <AuthContext.Provider value={{ user, authLoading, logout, setUser }}>
       {children}
     </AuthContext.Provider>
   );

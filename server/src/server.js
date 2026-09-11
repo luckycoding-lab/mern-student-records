@@ -8,6 +8,8 @@ import passport from "passport";
 import { connectDB } from "./config/db.js";
 import { configurePassport } from "./config/passport.js";
 import authRoutes from "./routes/authRoutes.js";
+import { protect } from "./middleware/auth.js"; // 1. Import protect middleware
+import { errorHandler } from "./middleware/errorHandler.js"; // 2. Import modular error handler
 
 import {
   getStudents,
@@ -32,17 +34,17 @@ const PORT = process.env.PORT || 5000;
 // Trust Render reverse proxy (ensures secure cookies and HTTPS headers work)
 app.set("trust proxy", 1);
 
-// 1. CORS Configuration (Allows both local dev and your live Vercel domain)
+// 1. CORS Configuration (Allows local dev, dynamic env origin, and production Vercel)
 const allowedOrigins = [
   "http://localhost:5173",
   "http://127.0.0.1:5173",
+  process.env.CLIENT_URL,
   "https://mern-student-records.vercel.app",
-];
+].filter(Boolean);
 
 app.use(
   cors({
     origin: (origin, callback) => {
-      // Allow requests with no origin (like mobile apps, curl, or server-to-server)
       if (!origin || allowedOrigins.includes(origin)) {
         return callback(null, true);
       }
@@ -72,30 +74,25 @@ const upload = multer({
   limits: { fileSize: 2 * 1024 * 1024 },
 });
 
-// 5. CSV Routes (Placed BEFORE dynamic /:id routes to prevent parameter collisions)
-app.get("/api/students/export/csv", exportStudentCSV);
-app.post("/api/students/import/csv", upload.single("file"), importStudentCSV);
+// 5. CSV Routes (Protected by auth middleware)
+app.get("/api/students/export/csv", protect, exportStudentCSV);
+app.post("/api/students/import/csv", protect, upload.single("file"), importStudentCSV);
 
-// 6. Student CRUD Routes
-app.get("/api/students", getStudents);
-app.post("/api/students", validateBody(studentSchema), createStudent);
-app.patch("/api/students/:id", validateBody(updateStudentSchema), updateStudent);
-app.delete("/api/students/:id", deleteStudent);
+// 6. Student CRUD Routes (Protected by auth middleware)
+app.get("/api/students", protect, getStudents);
+app.post("/api/students", protect, validateBody(studentSchema), createStudent);
+app.patch("/api/students/:id", protect, validateBody(updateStudentSchema), updateStudent);
+app.delete("/api/students/:id", protect, deleteStudent);
 
-// 7. Global Error Handler
-app.use((err, req, res, next) => {
-  res.status(err.statusCode || 500).json({
-    success: false,
-    message: err.message || "Internal Server Error",
-  });
-});
+// 7. Global Error Handler (Uses your modular error handler file)
+app.use(errorHandler);
 
 // 8. Server Launch
 const start = async () => {
   try {
     await connectDB();
-    app.listen(PORT, '0.0.0.0', () => {
-      console.log('🚀 Server listening on port:', PORT);
+    app.listen(PORT, "0.0.0.0", () => {
+      console.log("🚀 Server listening on port:", PORT);
     });
   } catch (error) {
     console.error("Server launch aborted due to DB connection failure.", error);

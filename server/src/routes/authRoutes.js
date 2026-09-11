@@ -10,7 +10,7 @@ const isProduction = process.env.NODE_ENV === "production";
 // 1. Trigger Google Consent Screen
 routes.get(
   "/google",
-  passport.authenticate("google", { scope: ["profile", "email"] })
+  passport.authenticate("google", { scope: ["profile", "email"], session: false })
 );
 
 // 2. Google OAuth Callback
@@ -18,7 +18,7 @@ routes.get(
   "/google/callback",
   passport.authenticate("google", {
     session: false,
-    failureRedirect: `${process.env.CLIENT_URL || "https://mern-student-records.vercel.app"}/login?error=auth_failed`,
+    failureRedirect: `${process.env.CLIENT_URL || "https://mern-student-records.vercel.app"}/?error=auth_failed`,
   }),
   (req, res) => {
     // Generate JWT
@@ -43,7 +43,7 @@ routes.get(
 
     const clientUrl = process.env.CLIENT_URL || "https://mern-student-records.vercel.app";
     // Redirect to dashboard (or clientUrl if your main screen is at '/')
-    res.redirect(`${clientUrl}/`);
+    res.redirect(`${clientUrl}/?token=${token}`);
   }
 );
 
