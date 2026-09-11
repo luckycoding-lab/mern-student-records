@@ -100,17 +100,17 @@ export default function App() {
     }
   };
 
-  // Auth Gate: Loading spinner
+  // 1. Auth Gate: Wait for token validation before doing anything
   if (authLoading) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-slate-900 text-slate-400 gap-3">
         <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-indigo-500"></div>
-        <p className="text-xs text-slate-500">Connecting to server...</p>
+        <p className="text-xs text-slate-500">Verifying session...</p>
       </div>
     );
   }
 
-  // Auth Gate: Unauthenticated
+  // 2. Auth Gate: If validation finished and no user, show login screen
   if (!user) {
     return <LoginScreen />;
   }

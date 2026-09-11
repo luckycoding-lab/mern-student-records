@@ -7,31 +7,24 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
 
-  // Verify session on mount
   useEffect(() => {
     let isMounted = true;
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 8000);
 
-    // 1. Capture token from URL query params (bypasses iOS/Safari cross-domain cookie blocks)
+    // 1. Read token from URL or existing localStorage inside the effect
     const urlParams = new URLSearchParams(window.location.search);
     const tokenFromUrl = urlParams.get('token');
 
     if (tokenFromUrl) {
       localStorage.setItem('authToken', tokenFromUrl);
-      // Clean up the URL query param without triggering a full page reload
+      // Clean query parameter from browser bar
       window.history.replaceState({}, document.title, window.location.pathname);
     }
 
-    // 2. Retrieve token from URL or localStorage fallback
     const token = tokenFromUrl || localStorage.getItem('authToken');
 
     const verifyAuth = async () => {
       try {
-        // Prepare headers (attaching Bearer token for Safari / iOS)
-        const headers = {
-          'Content-Type': 'application/json',
-        };
+        const headers = { 'Content-Type': 'application/json' };
         if (token) {
           headers['Authorization'] = `Bearer ${token}`;
         }
@@ -39,25 +32,22 @@ export const AuthProvider = ({ children }) => {
         const res = await fetch(`${API_URL}/api/auth/me`, {
           method: 'GET',
           headers,
-          credentials: 'include', // Retains cross-domain cookie check for desktop browsers
-          signal: controller.signal,
+          credentials: 'include',
         });
 
         if (res.ok) {
           const data = await res.json();
           if (isMounted) setUser(data.user);
         } else {
+          // If the token was invalid, remove it
           localStorage.removeItem('authToken');
           if (isMounted) setUser(null);
         }
       } catch (err) {
-        if (err.name !== 'AbortError') {
-          console.error('Auth verification error:', err);
-          localStorage.removeItem('authToken');
-        }
+        console.error('Auth verification error:', err);
+        localStorage.removeItem('authToken');
         if (isMounted) setUser(null);
       } finally {
-        clearTimeout(timeoutId);
         if (isMounted) setAuthLoading(false);
       }
     };
@@ -66,19 +56,13 @@ export const AuthProvider = ({ children }) => {
 
     return () => {
       isMounted = false;
-      controller.abort();
-      clearTimeout(timeoutId);
     };
   }, []);
 
-  // Logout handler
   const logout = async () => {
     try {
       const token = localStorage.getItem('authToken');
-      const headers = {};
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-      }
+      const headers = token ? { Authorization: `Bearer ${token}` } : {};
 
       await fetch(`${API_URL}/api/auth/logout`, {
         method: 'POST',
@@ -88,7 +72,6 @@ export const AuthProvider = ({ children }) => {
     } catch (error) {
       console.error('Logout failed:', error);
     } finally {
-      // Clear client-side token and reset user state
       localStorage.removeItem('authToken');
       setUser(null);
     }
