@@ -1,3 +1,4 @@
+// client/src/context/AuthProvider.jsx
 import { useState, useEffect } from 'react';
 import { AuthContext } from './AuthContext';
 
@@ -10,18 +11,19 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     let isMounted = true;
 
-    // 1. Read token from URL or existing localStorage inside the effect
+    // 1. Grab token from query string
     const urlParams = new URLSearchParams(window.location.search);
     const tokenFromUrl = urlParams.get('token');
 
     if (tokenFromUrl) {
       localStorage.setItem('authToken', tokenFromUrl);
-      // Clean query parameter from browser bar
+      // Clean query parameter from browser address bar
       window.history.replaceState({}, document.title, window.location.pathname);
     }
 
     const token = tokenFromUrl || localStorage.getItem('authToken');
 
+    // 2. Verify against backend
     const verifyAuth = async () => {
       try {
         const headers = { 'Content-Type': 'application/json' };
@@ -39,7 +41,6 @@ export const AuthProvider = ({ children }) => {
           const data = await res.json();
           if (isMounted) setUser(data.user);
         } else {
-          // If the token was invalid, remove it
           localStorage.removeItem('authToken');
           if (isMounted) setUser(null);
         }
