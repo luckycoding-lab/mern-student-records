@@ -2,6 +2,12 @@ import mongoose from "mongoose";
 
 const studentSchema = new mongoose.Schema(
   {
+    user: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: [true, , "Student record must be linked to a user"],
+      index: true,
+    },
     name: {
       type: String,
       required: [true, "Student name is Required"],

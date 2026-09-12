@@ -3,11 +3,24 @@ import { Parser } from "json2csv";
 import csv from "csv-parser";
 import { Readable } from "stream";
 import asyncHandler from "../utils/asyncHandler.js";
+import { SAMPLE_STUDENTS } from "../utils/sampleStudents.js";
 
-// 1. Get All Students (with optional city search)
+// 1. Get All Students (Scoped to User + Auto-Seeding)
 export const getStudents = asyncHandler(async (req, res) => {
   const { city } = req.query;
-  const query = {};
+  const userId = req.user.id;
+
+  const count = await Student.countDocuments({ user: userId });
+
+  if (count === 0) {
+    const demoData = SAMPLE_STUDENTS.map((student) => ({
+      ...student,
+      user: userId,
+    }));
+    await Student.insertMany(demoData);
+  }
+
+  const query = { user: userId };
 
   if (city && city.trim() !== "") {
     query.city = { $regex: city.trim(), $options: "i" };
@@ -22,42 +35,53 @@ export const getStudents = asyncHandler(async (req, res) => {
   });
 });
 
-// 2. Create Student
+// 2. Create Student (Assign to Authenticated User)
 export const createStudent = asyncHandler(async (req, res) => {
-  const newStudent = await Student.create(req.body);
+  const newStudent = await Student.create({
+    ...req.body,
+    user: req.user.id,
+  });
   res.status(201).json({ success: true, data: newStudent });
 });
 
-// 3. Update Student
+// 3. Update Student (Owner-Scoped)
 export const updateStudent = asyncHandler(async (req, res) => {
-  const updated = await Student.findByIdAndUpdate(req.params.id, req.body, {
-    new: true,
-    runValidators: true,
-  });
+  const updated = await Student.findOneAndUpdate(
+    { _id: req.params.id, user: req.user.id },
+    req.body,
+    {
+      new: true,
+      runValidators: true,
+    }
+  );
 
   if (!updated) {
     res.status(404);
-    throw new Error("Student not found");
+    throw new Error("Student record not found or unauthorized");
   }
 
   res.status(200).json({ success: true, data: updated });
 });
 
-// 4. Delete Student
+// 4. Delete Student (Owner-Scoped)
 export const deleteStudent = asyncHandler(async (req, res) => {
-  const deleted = await Student.findByIdAndDelete(req.params.id);
+  const deleted = await Student.findOneAndDelete({
+    _id: req.params.id,
+    user: req.user.id,
+  });
 
   if (!deleted) {
     res.status(404);
-    throw new Error("Student not found");
+    throw new Error("Student record not found or unauthorized");
   }
 
   res.status(200).json({ success: true, message: "Student record deleted" });
 });
 
-// 5. Export Students to CSV
+// 5. Export Students to CSV (Owner-Scoped)
 export const exportStudentCSV = asyncHandler(async (req, res) => {
-  const student = await Student.find({}).lean();
+  // Only query students belonging to the authenticated user
+  const student = await Student.find({ user: req.user.id }).lean();
 
   const flattenedData = student.map((s) => ({
     ID: s._id.toString(),
@@ -84,7 +108,6 @@ export const exportStudentCSV = asyncHandler(async (req, res) => {
   const json2csvParser = new Parser({ fields });
   const csvData = json2csvParser.parse(flattenedData);
 
-  // Set download and cache-prevention headers
   res.setHeader(
     "Cache-Control",
     "no-store, no-cache, must-revalidate, proxy-revalidate"
@@ -100,7 +123,7 @@ export const exportStudentCSV = asyncHandler(async (req, res) => {
   return res.status(200).send(csvData);
 });
 
-// 6. Import Students from CSV
+// 6. Import Students from CSV (Assign to Authenticated User)
 export const importStudentCSV = asyncHandler(async (req, res, next) => {
   if (!req.file) {
     res.status(400);
@@ -113,7 +136,6 @@ export const importStudentCSV = asyncHandler(async (req, res, next) => {
   stream
     .pipe(csv())
     .on("data", (row) => {
-      // Handle case-insensitive headers & trim values
       const name = row.Name?.trim() || row.name?.trim();
       const rawAge = row.Age || row.age;
       const city = row.City?.trim() || row.city?.trim();
@@ -128,6 +150,7 @@ export const importStudentCSV = asyncHandler(async (req, res, next) => {
 
       if (name && !isNaN(age) && city) {
         results.push({
+          user: req.user.id, // Attach ownership
           name,
           age,
           city,
